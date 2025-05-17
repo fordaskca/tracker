@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Roulette Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      background: #222;
+      color: white;
+      font-family: sans-serif;
+      padding: 20px;
+      text-align: center;
+    }
+
+    .main-wrapper {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .roulette-layout {
+      display: flex;
+    }
+
+    .zero-column {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 5px;
+    }
+
+    .zero-column .cell {
+      height: 120px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .grid-wrapper {
+      display: grid;
+      grid-template-rows: auto auto auto auto;
+      gap: 5px;
+    }
+
+    .top-row,
+    .bottom-row,
+    .dozen-row {
+      display: grid;
+      grid-template-columns: repeat(12, 40px);
+      gap: 5px;
+      justify-content: center;
+    }
+
+    .roulette-grid {
+      display: grid;
+      grid-template-columns: repeat(12, 40px);
+      grid-template-rows: repeat(3, 40px);
+      gap: 5px;
+    }
+
+    .cell {
+      position: relative;
+    }
+
+    .btn {
+      width: 40px;
+      height: 40px;
+      border: none;
+      font-size: 14px;
+      color: #fff;
+      border-radius: 4px;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .grey { background: #7f8c8d; }
+    .blue { background: #3498db; }
+    .dark { background: #34495e; }
+
+    .counter {
+      position: absolute;
+      top: 1px;
+      right: 2px;
+      font-size: 10px;
+      background: rgba(0,0,0,0.6);
+      padding: 1px 4px;
+      border-radius: 10px;
+    }
+
+    .field-input {
+      width: 40px;
+      padding: 2px;
+      font-size: 12px;
+      text-align: center;
+      background: #444;
+      border: 1px solid #666;
+      border-radius: 4px;
+      color: white;
+    }
+
+    .alert {
+      background: yellow !important;
+      color: black !important;
+    }
+
+    .settings {
+      margin-top: 20px;
+      padding: 10px;
+      background: #333;
+      border-radius: 6px;
+      display: grid;
+      grid-template-columns: repeat(4, auto);
+      gap: 15px;
+      justify-content: center;
+    }
+
+    .settings label {
+      font-size: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .settings input {
+      width: 60px;
+      text-align: center;
+      margin-top: 5px;
+    }
+
+    .tracker-strip {
+      display: flex;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      margin-top: 15px;
+      padding: 10px;
+      gap: 6px;
+      background: #111;
+      border-radius: 6px;
+    }
+
+    .track-box {
+      min-width: 30px;
+      padding: 6px;
+      border-radius: 4px;
+      font-weight: bold;
+      font-size: 13px;
+      color: white;
+      text-align: center;
+    }
+
+    .track-grey { background: #7f8c8d; }
+    .track-blue { background: #3498db; }
+    .track-dark { background: #34495e; }
+  </style>
+</head>
+<body>
+
+  <div class="main-wrapper">
+    <div class="roulette-layout">
+      <div class="zero-column">
+        <div class="cell">
+          <button class="btn dark" onclick="track(0)">
+            0
+            <span class="counter" id="count-0">0</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="grid-wrapper">
+        <div class="top-row" id="lineFields"></div>
+        <div class="roulette-grid" id="rouletteGrid"></div>
+        <div class="bottom-row" id="streetFields"></div>
+        <div class="dozen-row" id="dozenFields"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tracker-strip" id="tracker"></div>
+
+  <div style="margin-top: 10px;">
+    <button onclick="clearLast()" style="margin: 5px;">Clear Last Entry</button>
+    <button onclick="clearHistory()" style="margin: 5px;">Clear History</button>
+  </div>
+
+  <div class="settings">
+    <label>
+      Single
+      <input id="alertSingle" type="number" value="10" />
+      <input id="unitSingle" type="number" step="0.01" value="1.00" />
+    </label>
+    <label>
+      Line
+      <input id="alertLine" type="number" value="10" />
+      <input id="unitLine" type="number" step="0.01" value="0.50" />
+    </label>
+    <label>
+      Street
+      <input id="alertStreet" type="number" value="10" />
+      <input id="unitStreet" type="number" step="0.01" value="0.75" />
+    </label>
+    <label>
+      Dozen
+      <input id="alertDozen" type="number" value="10" />
+      <input id="unitDozen" type="number" step="0.01" value="1.50" />
+    </label>
+  </div>
+
+  <div style="margin-top: 20px;">
+    <button id="toggleVoice" onclick="toggleVoice()">Start Voice Listening</button>
+    <p id="voiceStatus" style="margin-top: 10px; font-size: 14px; color: #ccc;">Mic is off</p>
+  </div>
+
+  <script>
+    window.onload = function () {
+      const redNumbers = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+      const log = [];
+      const counters = {};
+      const groupDefs = {
+        lines: [],
+        streets: [],
+        dozens: [[1, 12], [13, 24], [25, 36]]
+      };
+
+      for (let i = 1; i <= 36; i += 6) groupDefs.lines.push([i, i + 5]);
+      for (let i = 1; i <= 34; i += 3) groupDefs.streets.push([i, i + 2]);
+      for (let i = 0; i <= 36; i++) counters[i] = 0;
+
+      const groupCounts = {};
+      Object.entries(groupDefs).forEach(([key, ranges]) => {
+        ranges.forEach(group => {
+          const id = `${key}-${group[0]}`;
+          groupCounts[id] = 0;
+        });
+      });
+
+      const grid = document.getElementById("rouletteGrid");
+      const lineFields = document.getElementById("lineFields");
+      const streetFields = document.getElementById("streetFields");
+      const dozenFields = document.getElementById("dozenFields");
+
+      const lineInputs = [];
+      const streetInputs = [];
+      const dozenInputs = [];
+
+      const rows = [
+        [3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36],
+        [2, 5, 8, 11, 14, 17, 20, 23, 26, 29, 32, 35],
+        [1, 4, 7, 10, 13, 16, 19, 22, 25, 28, 31, 34],
+      ];
+      rows.forEach(row => {
+        row.forEach(num => {
+          const cell = document.createElement("div");
+          cell.className = "cell";
+          const btn = document.createElement("button");
+          btn.className = "btn " + (redNumbers.includes(num) ? "grey" : "blue");
+          btn.textContent = num;
+          btn.onclick = () => track(num);
+          const counter = document.createElement("span");
+          counter.className = "counter";
+          counter.id = `count-${num}`;
+          counter.textContent = counters[num];
+          cell.appendChild(btn);
+          cell.appendChild(counter);
+          grid.appendChild(cell);
+        });
+      });
+
+      for (let i = 0; i < 12; i++) {
+        if (i % 2 === 0) {
+          const input = document.createElement("input");
+          input.type = "text";
+          input.className = "field-input";
+          input.readOnly = true;
+          lineFields.appendChild(input);
+          lineInputs.push(input);
+        } else {
+          const spacer = document.createElement("div");
+          spacer.style.width = "40px";
+          lineFields.appendChild(spacer);
+        }
+      }
+
+      for (let i = 0; i < 12; i++) {
+        const input = document.createElement("input");
+        input.type = "text";
+        input.className = "field-input";
+        input.readOnly = true;
+        streetFields.appendChild(input);
+        streetInputs.push(input);
+      }
+
+      for (let i = 0; i < 12; i++) {
+        const cell = document.createElement("div");
+        if (i === 0 || i === 4 || i === 8) {
+          const input = document.createElement("input");
+          input.type = "text";
+          input.className = "field-input";
+          input.readOnly = true;
+          dozenInputs.push(input);
+          cell.appendChild(input);
+        }
+        dozenFields.appendChild(cell);
+      }
+
+      function updateLineFields() {
+        for (let i = 0; i < 6; i++) {
+          const groupId = `lines-${1 + i * 6}`;
+          lineInputs[i].value = groupCounts[groupId];
+        }
+      }
+
+      function updateStreetFields() {
+        for (let i = 0; i < 12; i++) {
+          const groupId = `streets-${1 + i * 3}`;
+          streetInputs[i].value = groupCounts[groupId];
+        }
+      }
+
+      function updateDozenFields() {
+        const starts = [1, 13, 25];
+        for (let i = 0; i < 3; i++) {
+          const groupId = `dozens-${starts[i]}`;
+          dozenInputs[i].value = groupCounts[groupId];
+        }
+      }
+
+      function updateTracker() {
+        const tracker = document.getElementById("tracker");
+        tracker.innerHTML = '';
+        log.forEach(num => {
+          const div = document.createElement("div");
+          const color = num === 0 ? "dark" : redNumbers.includes(num) ? "grey" : "blue";
+          div.className = `track-box track-${color}`;
+          div.textContent = num;
+          tracker.appendChild(div);
+        });
+      }
+
+      function track(num) {
+        log.unshift(num);
+        applyTracking(num);
+        updateLineFields();
+        updateStreetFields();
+        updateDozenFields();
+        updateTracker();
+      }
+
+      function applyTracking(num) {
+        counters[num] = 0;
+        for (let i = 0; i <= 36; i++) {
+          if (i !== num) counters[i]++;
+          document.getElementById(`count-${i}`).textContent = counters[i];
+        }
+
+        Object.entries(groupDefs).forEach(([key, groups]) => {
+          groups.forEach(group => {
+            const id = `${key}-${group[0]}`;
+            if (group.length === 2 && num >= group[0] && num <= group[1]) {
+              groupCounts[id] = 0;
+            } else {
+              groupCounts[id]++;
+            }
+          });
+        });
+
+        const alertSingle = parseInt(document.getElementById("alertSingle").value);
+        const alertLine = parseInt(document.getElementById("alertLine").value);
+        const alertStreet = parseInt(document.getElementById("alertStreet").value);
+        const alertDozen = parseInt(document.getElementById("alertDozen").value);
+
+        for (let i = 0; i <= 36; i++) {
+          const el = document.getElementById(`count-${i}`);
+          el.classList.toggle("alert", counters[i] >= alertSingle);
+        }
+
+        lineInputs.forEach((input, i) => {
+          const groupId = `lines-${1 + i * 6}`;
+          input.classList.toggle("alert", groupCounts[groupId] >= alertLine);
+        });
+
+        streetInputs.forEach((input, i) => {
+          const groupId = `streets-${1 + i * 3}`;
+          input.classList.toggle("alert", groupCounts[groupId] >= alertStreet);
+        });
+
+        dozenInputs.forEach((input, i) => {
+          const groupId = `dozens-${[1, 13, 25][i]}`;
+          input.classList.toggle("alert", groupCounts[groupId] >= alertDozen);
+        });
+      }
+
+      function clearLast() {
+        if (log.length === 0) return;
+        log.shift();
+        replayLog();
+      }
+
+      function clearHistory() {
+        log.length = 0;
+        resetAllCounts();
+        updateTracker();
+      }
+
+      function resetAllCounts() {
+        for (let i = 0; i <= 36; i++) {
+          counters[i] = 0;
+          const el = document.getElementById(`count-${i}`);
+          el.textContent = '0';
+          el.classList.remove("alert");
+        }
+
+        Object.keys(groupCounts).forEach(key => {
+          groupCounts[key] = 0;
+        });
+
+        [...lineInputs, ...streetInputs, ...dozenInputs].forEach(input => {
+          input.value = "0";
+          input.classList.remove("alert");
+        });
+      }
+
+      function replayLog() {
+        resetAllCounts();
+        for (let i = log.length - 1; i >= 0; i--) {
+          applyTracking(log[i]);
+        }
+        updateLineFields();
+        updateStreetFields();
+        updateDozenFields();
+        updateTracker();
+      }
+
+      const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+      recognition.continuous = true;
+      recognition.lang = "en-US";
+      let isListening = false;
+
+      recognition.onresult = function (event) {
+        const transcript = event.results[event.results.length - 1][0].transcript.toLowerCase();
+        document.getElementById("voiceStatus").textContent = `Heard: "${transcript}"`;
+
+        for (let i = 0; i <= 36; i++) {
+          if (
+            transcript.includes(i.toString()) ||
+            transcript.includes(numToWords(i))
+          ) {
+            track(i);
+            break;
+          }
+        }
+      };
+
+      recognition.onerror = function (event) {
+        document.getElementById("voiceStatus").textContent = `Voice error: ${event.error}`;
+      };
+
+      function toggleVoice() {
+        const btn = document.getElementById("toggleVoice");
+        if (!isListening) {
+          try {
+            recognition.start();
+            isListening = true;
+            btn.textContent = "Stop Voice Listening";
+            document.getElementById("voiceStatus").textContent = "Listening for numbers...";
+          } catch (err) {
+            console.error(err);
+          }
+        } else {
+          recognition.stop();
+          isListening = false;
+          btn.textContent = "Start Voice Listening";
+          document.getElementById("voiceStatus").textContent = "Mic is off";
+        }
+      }
+
+      function numToWords(n) {
+        const map = [
+          "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
+          "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen",
+          "twenty", "twenty one", "twenty two", "twenty three", "twenty four", "twenty five", "twenty six",
+          "twenty seven", "twenty eight", "twenty nine", "thirty", "thirty one", "thirty two", "thirty three",
+          "thirty four", "thirty five", "thirty six"
+        ];
+        return map[n];
+      }
+    };
+  </script>
+</body>
+</html>
